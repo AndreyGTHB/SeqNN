@@ -16,7 +16,6 @@ class Neuron:
 
     def activate(self):
         self.activation = self.activation_function(self.income['impulse'])
-        self.income['impulse'] = 0
 
     def join(self, target, weight=round(np.random.uniform(-0.5, 0.5), 2)):
         if self.type == 'output':
@@ -35,7 +34,7 @@ class Neuron:
     def back_process(self):
         if self.type == 'input':
             return self.error
-        for t in self.transitions['outgoing']:
+        for t in self.transitions['inbox']:
             t.sendErrorToSource(self.error)
 
 
@@ -58,9 +57,10 @@ class Transition:
 
 
 class Network:
-    def __init__(self, input_neurons, activation_function):
+    def __init__(self, input_neurons, activation_function, derivative_function):
         self.layers = [[]]
         self.activation_function = activation_function
+        self.derivative_function = derivative_function
         for i in range(input_neurons):
             self.layers[-1].append(Sensor())
 
@@ -75,6 +75,7 @@ class Network:
                 n.join(neuron)
 
     def predict(self, input_data):
+        self.clean()
         output_data = []
         if self.layers[-1][0].type != 'output':
             raise RuntimeError('Network have not output layer')
@@ -101,4 +102,14 @@ class Network:
                     back_layers[0][i].error = output_data[i] - prediction[i]
                 for layer in back_layers:
                     for neuron in layer:
-                        pass
+                        neuron.back_process()
+                        for t in neuron.transitions['inbox']:
+                            t.weight += self.derivative_function(neuron.income['impulse']) * neuron.income['error'] * t.source.activation * learning_rate
+
+    def clean(self):
+        for layer in self.layers:
+            for neuron in layer:
+                neuron.income['impulse'] = 0
+                neuron.income['error'] = 0
+                neuron.activation = 0
+
