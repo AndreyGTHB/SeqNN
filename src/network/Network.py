@@ -4,36 +4,44 @@ import numpy as np
 class Neuron:
     def __init__(self, type, activation_function):
         self.type = type
-        self.income = 0
+        self.income = {'impulse': 0, 'error': 0}
         self.activation = 0
         self.activation_function = activation_function
         self.error = 0
-        self.transitions = []
+        self.transitions = {'outgoing': [], 'inbox': []}
 
     def __str__(self):
         return 'Neuron {' + f'type: {self.type}, income: {self.income}, activation: {self.activation},' \
                             f' transitions: {self.transitions}'
 
     def activate(self):
-        self.activation = self.activation_function(self.income)
+        self.activation = self.activation_function(self.income['impulse'])
+        self.income['impulse'] = 0
 
     def join(self, target, weight=round(np.random.uniform(-0.5, 0.5), 2)):
         if self.type == 'output':
             raise TypeError('Output neurons can not join another neurons.')
-        self.transitions.append(Transition(self, target, weight))
+        t = Transition(self, target, weight)
+        self.transitions['outgoing'].append(t)
+        target.transitions['inbox'].append(t)
 
     def process(self):
         if self.type == 'output':
             return self.activation
-        for t in self.transitions:
+        for t in self.transitions['outgoing']:
             t.sendImpulseToTarget(self.activation)
         self.activation = 0
 
     def back_process(self):
         if self.type == 'input':
             return self.error
-        for t in self.transitions:
+        for t in self.transitions['outgoing']:
             t.sendErrorToSource(self.error)
+
+
+class Sensor(Neuron):
+    def __init__(self):
+        super(Sensor, self).__init__('input', lambda x: x)
 
 
 class Transition:
@@ -43,10 +51,10 @@ class Transition:
         self.weight = weight
 
     def sendImpulseToTarget(self, impulse):
-        self.target.income += impulse * self.weight
+        self.target.income['impulse'] += impulse * self.weight
 
     def sendErrorToSource(self, impulse):
-        self.source.Error = impulse * self.weight
+        self.source.income['error'] += impulse * self.weight
 
 
 class Network:
@@ -54,7 +62,7 @@ class Network:
         self.layers = [[]]
         self.activation_function = activation_function
         for i in range(input_neurons):
-            self.layers[-1].append(Neuron('input', activation_function))
+            self.layers[-1].append(Sensor())
 
     def add_layer(self, neurons, layer_type='hidden'):
         if neurons <= 0:
@@ -72,7 +80,7 @@ class Network:
             raise RuntimeError('Network have not output layer')
         for i in range(len(self.layers[0])):
             neuron = self.layers[0][i]
-            neuron.income = input_data[i]
+            neuron.income['impulse'] = input_data[i]
         for layer in self.layers:
             for neuron in layer:
                 neuron.activate()
@@ -94,5 +102,3 @@ class Network:
                 for layer in back_layers:
                     for neuron in layer:
                         pass
-
-
