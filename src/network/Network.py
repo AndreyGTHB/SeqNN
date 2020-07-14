@@ -7,7 +7,6 @@ class Neuron:
         self.income = {'impulse': 0, 'error': 0}
         self.activation = 0
         self.activation_function = activation_function
-        self.error = 0
         self.transitions = {'outgoing': [], 'inbox': []}
 
     def __str__(self):
@@ -29,13 +28,12 @@ class Neuron:
             return self.activation
         for t in self.transitions['outgoing']:
             t.sendImpulseToTarget(self.activation)
-        self.activation = 0
 
     def back_process(self):
         if self.type == 'input':
-            return self.error
+            return self.income['error']
         for t in self.transitions['inbox']:
-            t.sendErrorToSource(self.error)
+            t.sendErrorToSource(self.income['error'])
 
 
 class Sensor(Neuron):
@@ -93,18 +91,20 @@ class Network:
 
     def train(self, training_input, training_output, epochs, learning_rate):
         for epoch in range(epochs):
-            for index_of_training_data in range(len(training_input)):
-                input_data = training_input[index_of_training_data]
-                output_data = training_output[index_of_training_data]
-                prediction = self.predict(input_data)
-                back_layers = self.layers[::-1]
-                for i in range(len(back_layers[0])):
-                    back_layers[0][i].error = output_data[i] - prediction[i]
-                for layer in back_layers:
+            for i_of_training_data in range(len(training_input)):
+                outputs = training_output[i_of_training_data]
+                inputs = training_input[i_of_training_data]
+                prediction = self.predict(inputs)
+                reversed_network = self.layers[::-1]
+                for i in range(len(reversed_network[0])):
+                    reversed_network[0][i].income['error'] = outputs[i] - prediction[i]
+                for layer in reversed_network[:-1]:
                     for neuron in layer:
                         neuron.back_process()
+                for layer in self.layers[1:]:
+                    for neuron in layer:
                         for t in neuron.transitions['inbox']:
-                            t.weight += self.derivative_function(neuron.income['impulse']) * neuron.income['error'] * t.source.activation * learning_rate
+                            t.weight += neuron.income['error'] * self.derivative_function(neuron.activation) * t.source.activation * learning_rate
 
     def clean(self):
         for layer in self.layers:
